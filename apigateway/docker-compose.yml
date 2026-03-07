@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2
+    container_name: api-gateway-redis
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    container_name: api-gateway-app
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"

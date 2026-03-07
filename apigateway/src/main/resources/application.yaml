@@ -1,10 +1,6 @@
 spring:
   application:
     name: apigateway
-  data:
-    redis:
-      host: localhost
-      port: 6379
 
 jwt:
   secret: bXlzdXBlcnNlY3JldGtleW15c3VwZXJzZWNyZXRrZXlteXN1cGVyc2VjcmV0a2V5MTIzNDU=
