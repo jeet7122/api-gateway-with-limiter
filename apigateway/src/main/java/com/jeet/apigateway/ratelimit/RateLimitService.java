@@ -1,6 +1,7 @@
 package com.jeet.apigateway.ratelimit;
 
 import com.jeet.apigateway.exception.RateLimitExceeded;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -12,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Data
 public class RateLimitService {
 
     private final StringRedisTemplate redisTemplate;
@@ -77,5 +79,18 @@ public class RateLimitService {
         redisTemplate.opsForHash().put(key, "lastRefillTimestamp", String.valueOf(bucket.getLastRefillTimestamp()));
 
         redisTemplate.expire(key, refillDurationSeconds * 2, TimeUnit.SECONDS);
+    }
+
+
+    public TokenBucket getCurrentBucket(String clientId){
+        String key = "ratelimit:" + clientId;
+
+        long now = Instant.now().getEpochSecond();
+
+        TokenBucket bucket = getBucket(key, now);
+
+        refillTokens(bucket, now);
+
+        return bucket;
     }
 }
