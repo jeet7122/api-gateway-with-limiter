@@ -1,4 +1,4 @@
-# API Gateway with Rate Limiting
+**# API Gateway with Rate Limiting
 
 ---
 
@@ -31,37 +31,31 @@ The goal of this project is to demonstrate understanding of **backend infrastruc
 
 ## Features
 
-- **API Gateway layer** for centralized request handling
-- **Token bucket rate limiting** to control client request throughput
-- **Redis-backed counters** for distributed traffic control
-- **JWT authentication filter** for protected request handling
-- **Request filtering middleware** for gateway-level validation
-- **Monitoring endpoints** to inspect traffic and throttling behavior
-- **Dockerized setup** for local development and deployment
-
+- **JWT Authentication Filter** for protected routes
+- **Redis-backed Token Bucket Rate Limiter**
+- **User-based rate limiting** with IP fallback
+- **Structured API error responses**
+- **Monitoring endpoint for rate limit status**
+- **Spring Security filter chain architecture**
+- **Dockerized runtime environment**
+- **Environment-specific configuration (local / docker)**
 ---
 
 ## Tech Stack
 
-- **Java**
-- **Spring Boot**
-- **Spring Web**
-- **Spring Security**
-- **Redis**
-- **Docker**
-
+| Layer | Technology |
+|------|-------------|
+| Backend | Java, Spring Boot |
+| Security | Spring Security, JWT |
+| Rate Limiting | Redis |
+| Containerization | Docker, Docker Compose |
+| Build Tool | Maven |
 ---
 
 ## Architecture
 
-The system is designed around a gateway-first request pipeline:
 
-1. A client sends a request to the API Gateway.
-2. The gateway applies authentication and request filtering.
-3. The rate limiter checks whether the request can proceed.
-4. Redis stores or updates request counters / bucket state.
-5. If the request is within allowed limits, it is forwarded.
-6. If the request exceeds the configured threshold, the gateway returns a throttling response.
+The system is designed around a **gateway-first request pipeline** implemented using Spring Security filters.
 
 ### High-Level Flow
 
@@ -75,13 +69,18 @@ API Gateway
       |
       +--> Request Validation / Filtering
       |
-      +--> Rate Limiter
+      +--> Rate Limiter(Token Bucket)
                |
                v
              Redis
       |
-      +--> Forward Request / Reject with 429
+      +--> Forward Request(Controller) / Reject with 429
 ```
+
+### Redis Rate Limit State
+Each client has a **token bucket stored in Redis**.
+
+
 ### Why Rate Limiting Matters
 Rate limiting is an essential part of production backend systems because it helps:
 - protect services from abuse and brute-force traffic
@@ -114,14 +113,14 @@ This project showcases several backend engineering concepts:
 ---
 ### Project Structure
 ```text
-src/main/java/com/example/apigateway
+src/main/java/com/jeet/apigateway
 │
-├── config/             # Security, Redis, and application configuration
-├── controller/         # Monitoring / test endpoints
-├── filter/             # JWT filter and request filter chain
-├── ratelimiter/        # Rate limiting logic and token bucket handling
-├── service/            # Supporting business logic
-├── util/               # Helper classes and shared utilities
+├── config/        # Security and application configuration
+├── controller/    # REST controllers
+├── exception/     # Custom exception classes
+├── model/         # Response DTOs
+├── ratelimit/     # Token bucket rate limiting logic
+├── security/      # JWT authentication implementation
 └── ApiGatewayApplication.java
 ```
 
@@ -225,18 +224,57 @@ Or:
   mvn spring-boot:run
 ```
 
-#### 4. Test the API
+#### 4. Test the API's
 Send repeated requests to the protected/test endpoint and observe throttling behavior.
 
 Example:
+
+- Public Endpoints
 ```bash
-  curl http://localhost:8080/api/test
+  GET /api/public/hello
+  GET /api/public/token?username=<username>
+  GET /api/health
+```
+
+- Protected Endpoints
+    
+    - Require Header: Authorization: Bearer <JWT>
+
+```bash
+   GET /api/private/hello
+   GET /api/private/rate-limit/status
+```
+
+- Status is a monitoring endpoint
+
+    - Example Response
+```json
+  {
+      "clientId": "khushi",
+      "tokensRemaining": 3,
+      "capacity": 5,
+      "refillTokens": 5,
+      "refillDurationSeconds": 60
+  }
 ```
 
 If the limit is exceeded, the gateway should return:
+
 ```text
 HTTP 429 Too Many Requests
 ```
+
+### Sample Response for Rate Limit Exceeded
+
+```json
+{
+  "timestamp": "2026-03-05T12:30:00Z",
+  "status": 429,
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded. Please try again later."
+}
+```
+
 
 ---
 
@@ -262,8 +300,8 @@ spring:
       port: 6379
 
 rate-limit:
-  capacity: 10
-  refill-tokens: 10
+  capacity: 5
+  refill-tokens: 5
   refill-duration-seconds: 60
 ```
 
@@ -287,16 +325,7 @@ Update these fields to match your actual configuration.
 
 ---
 
-### Sample Response for Rate Limit Exceeded
 
-```json
-{
-  "timestamp": "2026-03-05T12:30:00Z",
-  "status": 429,
-  "error": "Too Many Requests",
-  "message": "Rate limit exceeded. Please try again later."
-}
-```
 
 ---
 ### Docker Support
@@ -319,18 +348,21 @@ You can also use Docker Compose to run the gateway alongside Redis.
 
 ```yaml
 version: '3.8'
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    depends_on:
-      - redis
 
+services:
   redis:
-    image: redis
+    image: redis:7.2
+    container_name: api-gateway-redis
     ports:
       - "6379:6379"
+
+  app:
+    build: .
+    container_name: api-gateway-app
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
 ```
 
 ---
