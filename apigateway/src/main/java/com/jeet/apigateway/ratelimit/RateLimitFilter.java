@@ -8,6 +8,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -26,12 +28,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        String clientId = request.getRemoteAddr();
+        String clientId = resolveClientId(request);
 
         try {
             rateLimitService.checkRateLimit(clientId);
             filterChain.doFilter(request, response);
         } catch (RateLimitExceeded e) {
+
             ApiErrorResponse errorResponse = new ApiErrorResponse(
                     LocalDateTime.now(),
                     429,
@@ -46,9 +49,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
     }
 
+    private String resolveClientId(HttpServletRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication != null && authentication.isAuthenticated()
+                && !"anonymousUser".equals(authentication.getPrincipal())) {
+
+            return authentication.getName(); // authenticated user
+        }
+
+        return request.getRemoteAddr(); // fallback for anonymous users
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+
         String path = request.getRequestURI();
+
         return path.startsWith("/api/public/")
                 || path.equals("/api/health");
     }
