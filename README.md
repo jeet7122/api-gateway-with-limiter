@@ -1,4 +1,4 @@
-**# API Gateway with Rate Limiting
+# API Gateway with Rate Limiting
 
 ---
 
